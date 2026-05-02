@@ -86,6 +86,8 @@ class ConnectionManager:
         while True:
             await asyncio.sleep(30)
             try:
+                if self._quote_ctx is None:
+                    continue
                 loop = asyncio.get_running_loop()
                 ret, _ = await loop.run_in_executor(None, self._quote_ctx.get_global_state)
                 if ret != ft.RET_OK:
@@ -110,7 +112,7 @@ class ConnectionManager:
             try:
                 await self._connect_contexts()
             except MoomooConnectionError:
-                await asyncio.sleep(min(backoff, 64))
+                await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 64)
 
     async def __aenter__(self) -> "ConnectionManager":
