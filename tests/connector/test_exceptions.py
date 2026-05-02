@@ -1,4 +1,7 @@
+import pytest
+
 from connector.exceptions import (
+    MoomooError,
     MoomooConnectionError,
     MoomooAuthenticationError,
     MoomooOrderError,
@@ -46,3 +49,15 @@ def test_all_are_exception_subclasses():
         MoomooOptionsError,
     ]:
         assert issubclass(cls, Exception)
+        assert issubclass(cls, MoomooError)
+
+
+def test_default_error_code_is_minus_one():
+    exc = MoomooConnectionError("something went wrong")
+    assert exc.error_code == -1
+
+
+def test_can_be_raised_and_caught():
+    with pytest.raises(MoomooConnectionError) as exc_info:
+        raise MoomooConnectionError("boom", error_code=42)
+    assert exc_info.value.error_code == 42
