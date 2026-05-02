@@ -97,8 +97,11 @@ async def test_get_order_book_raises_on_sdk_error(mock_conn):
 async def test_subscribe_quotes_registers_handler(mock_conn):
     mock_conn.quote_ctx.subscribe.return_value = (ft.RET_OK, "")
 
+    received = []
     md = MarketData(mock_conn)
-    await md.subscribe_quotes("AAPL", lambda data: None)
+    await md.subscribe_quotes("AAPL", lambda data: received.append(data))
 
     mock_conn.quote_ctx.set_handler.assert_called_once()
     mock_conn.quote_ctx.subscribe.assert_called_once()
+    # Verify the subscription task was stored
+    assert len(md._subscription_tasks) == 1

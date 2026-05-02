@@ -11,6 +11,7 @@ from .exceptions import MoomooMarketDataError
 class MarketData:
     def __init__(self, conn: ConnectionManager) -> None:
         self._conn = conn
+        self._subscription_tasks: list[asyncio.Task] = []
 
     async def get_quote(self, symbol: str) -> dict:
         loop = asyncio.get_running_loop()
@@ -88,15 +89,13 @@ class MarketData:
         queue: asyncio.Queue = asyncio.Queue()
 
         class _Handler(ft.StockQuoteHandlerBase):
-            def on_recv_rsp(self, rsp_str: str) -> tuple:
-                ret_code, content = super().on_recv_rsp(rsp_str)
+            def on_recv_rsp(self, rsp_pb) -> tuple:
+                ret_code, content = super().on_recv_rsp(rsp_pb)
                 if ret_code == ft.RET_OK and not content.empty:
                     row = content.iloc[0]
                     loop.call_soon_threadsafe(queue.put_nowait, {
                         "symbol": symbol,
                         "last_price": float(row["last_price"]),
-                        "bid_price": float(row["bid_price"]),
-                        "ask_price": float(row["ask_price"]),
                         "volume": int(row["volume"]),
                     })
                 return ret_code, content
@@ -107,10 +106,14 @@ class MarketData:
             None,
             lambda: quote_ctx.subscribe([f"US.{symbol}"], [ft.SubType.QUOTE]),
         )
-        asyncio.create_task(self._dispatch(queue, callback))
+        task = asyncio.create_task(self._dispatch(queue, callback))
+        self._subscription_tasks.append(task)
 
     @staticmethod
     async def _dispatch(queue: asyncio.Queue, callback: Callable[[dict], None]) -> None:
         while True:
             data = await queue.get()
-            callback(data)
+            try:
+                callback(data)
+            except Exception:
+                pass
