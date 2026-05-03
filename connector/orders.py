@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
@@ -75,6 +76,7 @@ class OrderSpec:
 class Orders:
     def __init__(self, conn: ConnectionManager) -> None:
         self._conn = conn
+        self._fill_tasks: list[asyncio.Task] = []
 
     async def place_order(self, spec: OrderSpec) -> str:
         loop = asyncio.get_running_loop()
@@ -152,3 +154,35 @@ class Orders:
                     "created_at": row["create_time"],
                 })
         return results
+
+    async def subscribe_fills(self, callback: Callable[[dict], None]) -> None:
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+
+        class _FillHandler(ft.TradeDealHandlerBase):
+            def on_recv_rsp(self, rsp_pb):
+                ret_code, content = super().on_recv_rsp(rsp_pb)
+                if ret_code == ft.RET_OK and not content.empty:
+                    for _, row in content.iterrows():
+                        loop.call_soon_threadsafe(queue.put_nowait, {
+                            "order_id": str(row["order_id"]),
+                            "symbol": row["code"],
+                            "side": row["trd_side"],
+                            "qty": int(row["qty"]),
+                            "price": float(row["price"]),
+                            "filled_at": row["create_time"],
+                        })
+                return ret_code, content
+
+        self._conn.trade_ctx.set_handler(_FillHandler())
+        task = asyncio.create_task(self._dispatch_fills(queue, callback))
+        self._fill_tasks.append(task)
+
+    @staticmethod
+    async def _dispatch_fills(queue: asyncio.Queue, callback: Callable[[dict], None]) -> None:
+        while True:
+            data = await queue.get()
+            try:
+                callback(data)
+            except Exception:
+                pass

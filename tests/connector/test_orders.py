@@ -182,3 +182,46 @@ async def test_order_spec_is_option_property():
         price=150.0,
     )
     assert stock_spec.is_option is False
+
+
+async def test_subscribe_fills_registers_handler(mock_conn):
+    orders = Orders(mock_conn)
+    received = []
+    await orders.subscribe_fills(lambda fill: received.append(fill))
+
+    mock_conn.trade_ctx.set_handler.assert_called_once()
+
+
+async def test_subscribe_fills_dispatches_fill_to_callback(mock_conn):
+    import asyncio
+    import moomoo as ft
+    from unittest.mock import patch
+
+    orders = Orders(mock_conn)
+    received: list[dict] = []
+    done = asyncio.Event()
+
+    def callback(fill):
+        received.append(fill)
+        done.set()
+
+    await orders.subscribe_fills(callback)
+
+    handler = mock_conn.trade_ctx.set_handler.call_args.args[0]
+    fill_df = pd.DataFrame([{
+        "order_id": "ORD001",
+        "code": "US.AAPL",
+        "trd_side": "BUY",
+        "qty": 10,
+        "price": 150.0,
+        "create_time": "2024-01-15 10:00:00",
+    }])
+
+    with patch.object(ft.TradeDealHandlerBase, "on_recv_rsp", return_value=(ft.RET_OK, fill_df)):
+        handler.on_recv_rsp(object())  # rsp_pb sentinel — super() is mocked
+
+    await asyncio.wait_for(done.wait(), timeout=1.0)
+    assert received[0]["order_id"] == "ORD001"
+    assert received[0]["symbol"] == "US.AAPL"
+    assert received[0]["qty"] == 10
+    assert received[0]["price"] == 150.0
