@@ -49,6 +49,9 @@ Past performance and your accumulated learnings:
 - learnings/learnings.jsonl — observations from your prior reflections. Active
   entries (active=true) represent your current beliefs about what works and
   what doesn't. Consult both before sizing positions and choosing trades.
+  Entries with `source` starting `backtest:` came from offline simulation —
+  treat them with appropriate caution and validate against real fills before
+  relying heavily on them.
 
 Important:
 - Doing nothing is often the right decision. Do not feel obligated to trade.

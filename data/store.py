@@ -67,3 +67,9 @@ class DataStore:
         tmp = target.with_suffix(target.suffix + ".tmp")
         tmp.write_text(content)
         os.replace(tmp, target)
+
+    def history_cache_dir(self) -> Path:
+        return self.root / "historical_cache"
+
+    def backtest_run_dir(self, run_id: str) -> Path:
+        return self.root / "backtests" / run_id
