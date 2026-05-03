@@ -7,7 +7,7 @@ from agent.prompt import PromptBuilder
 
 def test_prompt_includes_system_role(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 10000.0, "buying_power": 20000.0,
@@ -24,7 +24,7 @@ def test_prompt_includes_system_role(tmp_path):
 
 def test_prompt_includes_account_state(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 10000.0, "buying_power": 20000.0,
@@ -42,7 +42,7 @@ def test_prompt_includes_account_state(tmp_path):
 
 def test_prompt_includes_data_file_paths_for_each_watchlist_symbol(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL", "SPY"], history_interval="1m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL", "SPY"], history_interval="1m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,
@@ -56,7 +56,7 @@ def test_prompt_includes_data_file_paths_for_each_watchlist_symbol(tmp_path):
 
 def test_prompt_includes_recent_fills_when_present(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,
@@ -74,7 +74,7 @@ def test_prompt_includes_recent_fills_when_present(tmp_path):
 
 def test_prompt_uses_configured_history_interval(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="5m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="5m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,
@@ -86,7 +86,7 @@ def test_prompt_uses_configured_history_interval(tmp_path):
 
 def test_prompt_includes_recent_order_updates(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,
@@ -107,7 +107,7 @@ def test_prompt_includes_recent_order_updates(tmp_path):
 
 def test_prompt_includes_performance_and_learnings_paths(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m", max_position_size_pct=5.0)
     prompt = builder.build(
         now=datetime(2026, 5, 4, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,

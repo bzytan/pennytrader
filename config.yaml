@@ -9,9 +9,7 @@ market_hours:
   tz: "America/New_York"
 
 watchlist:
-  - AAPL
-  - SPY
-  - TSLA
+  - RDDT
 
 history:
   interval: "1m"

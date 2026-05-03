@@ -128,6 +128,7 @@ async def _run_backtest(args) -> int:
     prompt_builder = PromptBuilder(
         store=run_store, watchlist=watchlist,
         history_interval=args.bar_interval,
+        max_position_size_pct=config.safety.max_position_size_pct,
     )
 
     class _LogWriter:

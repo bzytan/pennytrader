@@ -87,6 +87,7 @@ async def main() -> None:
         prompt_builder = PromptBuilder(
             store=store, watchlist=config.watchlist,
             history_interval=config.history.interval,
+            max_position_size_pct=config.safety.max_position_size_pct,
         )
         log_writer = JsonlLogWriter(store)
 

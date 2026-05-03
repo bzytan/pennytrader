@@ -57,15 +57,21 @@ Important:
 - Doing nothing is often the right decision. Do not feel obligated to trade.
 - Each invocation is stateless — you have no memory of prior ticks. State lives in
   the broker (positions, orders, fills) and the data files.
-- Per-trade size cap is enforced by the system; oversized proposals will be rejected.
+- Per-trade size cap is enforced by the system. The current dollar limit is in
+  `max_per_trade_usd` in the state JSON. Compute notional = qty × price (× contract_size
+  for options) and keep it under that cap or your proposal will be rejected.
 - Your reasoning, scripts you run, and proposals are all logged for later review."""
 
 
 class PromptBuilder:
-    def __init__(self, store: DataStore, watchlist: list[str], history_interval: str) -> None:
+    def __init__(
+        self, store: DataStore, watchlist: list[str], history_interval: str,
+        max_position_size_pct: float,
+    ) -> None:
         self._store = store
         self._watchlist = watchlist
         self._history_interval = history_interval
+        self._max_position_size_pct = max_position_size_pct
 
     def build(
         self,
@@ -77,6 +83,8 @@ class PromptBuilder:
         recent_order_updates: list[dict],
         daily_pnl: float,
     ) -> str:
+        total_assets = float(balance.get("total_assets", 0.0))
+        max_per_trade = total_assets * self._max_position_size_pct / 100.0
         state = {
             "time": now.isoformat(),
             "balance": balance,
@@ -85,6 +93,8 @@ class PromptBuilder:
             "recent_fills_since_last_tick": recent_fills,
             "recent_order_updates_since_last_tick": recent_order_updates,
             "daily_pnl": daily_pnl,
+            "max_per_trade_usd": round(max_per_trade, 2),
+            "max_position_size_pct": self._max_position_size_pct,
         }
 
         files: dict[str, str] = {
