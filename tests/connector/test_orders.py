@@ -225,3 +225,56 @@ async def test_subscribe_fills_dispatches_fill_to_callback(mock_conn):
     assert received[0]["symbol"] == "US.AAPL"
     assert received[0]["qty"] == 10
     assert received[0]["price"] == 150.0
+
+
+async def test_subscribe_order_updates_registers_handler(mock_conn):
+    orders = Orders(mock_conn)
+    received = []
+    await orders.subscribe_order_updates(lambda update: received.append(update))
+
+    mock_conn.trade_ctx.set_handler.assert_called_once()
+    handler = mock_conn.trade_ctx.set_handler.call_args.args[0]
+    import moomoo as ft
+    assert isinstance(handler, ft.TradeOrderHandlerBase)
+
+
+async def test_subscribe_order_updates_dispatches_to_callback(mock_conn):
+    import asyncio
+    import moomoo as ft
+    from unittest.mock import patch
+
+    orders = Orders(mock_conn)
+    received: list[dict] = []
+    done = asyncio.Event()
+
+    def callback(update):
+        received.append(update)
+        done.set()
+
+    await orders.subscribe_order_updates(callback)
+
+    handler = mock_conn.trade_ctx.set_handler.call_args.args[0]
+    update_df = pd.DataFrame([{
+        "order_id": "ORD001",
+        "code": "US.AAPL",
+        "trd_side": "BUY",
+        "qty": 10,
+        "price": 150.0,
+        "filled_qty": 0,
+        "order_status": "SUBMITTED",
+        "updated_time": "2024-01-15 10:00:01",
+        "create_time": "2024-01-15 10:00:00",
+    }])
+
+    with patch.object(ft.TradeOrderHandlerBase, "on_recv_rsp", return_value=(ft.RET_OK, update_df)):
+        handler.on_recv_rsp(object())
+
+    await asyncio.wait_for(done.wait(), timeout=1.0)
+    assert received[0]["order_id"] == "ORD001"
+    assert received[0]["symbol"] == "US.AAPL"
+    assert received[0]["side"] == "BUY"
+    assert received[0]["qty"] == 10
+    assert received[0]["price"] == 150.0
+    assert received[0]["filled_qty"] == 0
+    assert received[0]["order_status"] == "SUBMITTED"
+    assert received[0]["updated_at"] == "2024-01-15 10:00:01"

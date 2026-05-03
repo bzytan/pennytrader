@@ -66,6 +66,9 @@ async def main() -> None:
         fill_buffer: list[dict] = []
         await orders.subscribe_fills(lambda fill: fill_buffer.append(fill))
 
+        order_update_buffer: list[dict] = []
+        await orders.subscribe_order_updates(lambda update: order_update_buffer.append(update))
+
         safe_orders = SafeOrders(
             orders=orders, account=account,
             max_position_size_pct=config.safety.max_position_size_pct,
@@ -82,8 +85,8 @@ async def main() -> None:
         engine = Engine(
             config=config, collector=collector, runner=runner,
             prompt_builder=prompt_builder, account=account, orders=orders,
-            fill_buffer=fill_buffer, log_writer=log_writer,
-            store=store, executor=executor,
+            fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
+            log_writer=log_writer, store=store, executor=executor,
         )
 
         stop_event = asyncio.Event()
