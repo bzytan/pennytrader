@@ -105,3 +105,32 @@ async def test_subscribe_quotes_registers_handler(mock_conn):
     mock_conn.quote_ctx.subscribe.assert_called_once()
     # Verify the subscription task was stored
     assert len(md._subscription_tasks) == 1
+
+
+async def test_get_trading_days_returns_typed_list(mock_conn):
+    from datetime import date
+    mock_conn.quote_ctx.request_trading_days.return_value = (
+        ft.RET_OK,
+        [
+            {"time": "2024-11-27", "trade_date_type": "WHOLE"},
+            {"time": "2024-11-29", "trade_date_type": "MORNING"},
+        ],
+    )
+
+    md = MarketData(mock_conn)
+    result = await md.get_trading_days("US", date(2024, 11, 27), date(2024, 11, 29))
+
+    assert len(result) == 2
+    assert result[0]["date"] == date(2024, 11, 27)
+    assert result[0]["type"] == "WHOLE"
+    assert result[1]["date"] == date(2024, 11, 29)
+    assert result[1]["type"] == "MORNING"
+
+
+async def test_get_trading_days_raises_on_sdk_error(mock_conn):
+    from datetime import date
+    mock_conn.quote_ctx.request_trading_days.return_value = (ft.RET_ERROR, "Error")
+
+    md = MarketData(mock_conn)
+    with pytest.raises(MoomooMarketDataError):
+        await md.get_trading_days("US", date(2024, 1, 1), date(2024, 12, 31))
