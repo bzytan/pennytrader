@@ -78,6 +78,14 @@ async def test_get_option_quote_raises_on_sdk_error(mock_conn):
         await opts.get_option_quote("US.AAPL240119C00150000")
 
 
+async def test_get_option_quote_raises_on_empty_response(mock_conn):
+    mock_conn.quote_ctx.get_market_snapshot.return_value = (ft.RET_OK, pd.DataFrame())
+
+    opts = Options(mock_conn)
+    with pytest.raises(MoomooOptionsError, match="No snapshot data"):
+        await opts.get_option_quote("US.AAPL240119C00150000")
+
+
 async def test_get_greeks_returns_dict(mock_conn):
     df = pd.DataFrame([{
         "code": "US.AAPL240119C00150000",

@@ -67,6 +67,8 @@ class Options:
         )
         if ret != ft.RET_OK:
             raise MoomooOptionsError(str(data), error_code=ret)
+        if data.empty:
+            raise MoomooOptionsError(f"No snapshot data returned for contract: {contract}")
         row = data.iloc[0]
         return {
             "contract": contract,
