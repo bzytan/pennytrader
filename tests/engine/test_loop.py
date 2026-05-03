@@ -322,3 +322,21 @@ async def test_collector_failure_preserves_order_updates(deps, calendar):
     assert len(order_update_buffer) == 1
     assert order_update_buffer[0]["order_id"] == "ORD001"
     runner.run.assert_not_awaited()
+
+
+async def test_tick_skips_on_non_trading_day(deps, calendar):
+    (collector, runner, prompt_builder, account, orders,
+     fill_buffer, order_update_buffer, executor, store) = deps
+    calendar.is_trading_day = MagicMock(return_value=False)
+    config = _make_config()
+    engine = Engine(
+        config=config, collector=collector, runner=runner,
+        prompt_builder=prompt_builder, account=account, orders=orders,
+        fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
+        executor=executor, store=store, calendar=calendar, log_writer=MagicMock(),
+    )
+    open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
+    await engine.tick(now=open_time)
+
+    collector.collect.assert_not_awaited()
+    runner.run.assert_not_awaited()
