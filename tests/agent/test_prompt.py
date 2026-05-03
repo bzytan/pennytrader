@@ -103,3 +103,20 @@ def test_prompt_includes_recent_order_updates(tmp_path):
     assert "ORD001" in prompt
     assert "FAILED" in prompt
     assert str(store.recent_order_updates_path()) in prompt
+
+
+def test_prompt_includes_performance_and_learnings_paths(tmp_path):
+    store = DataStore(tmp_path)
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
+    prompt = builder.build(
+        now=datetime(2026, 5, 4, 10, 30),
+        balance={"cash": 0.0, "buying_power": 0.0,
+                 "total_assets": 0.0, "market_value": 0.0, "currency": "USD"},
+        positions=[], open_orders=[],
+        recent_fills=[], recent_order_updates=[],
+        daily_pnl=0.0,
+    )
+    assert str(store.performance_path()) in prompt
+    assert str(store.learnings_path()) in prompt
+    assert "performance" in prompt.lower()
+    assert "learnings" in prompt.lower()
