@@ -28,6 +28,7 @@ class Engine:
         account: Account,
         orders: Orders,
         fill_buffer: list[dict],
+        order_update_buffer: list[dict],
         log_writer: _LogWriter,
         store: DataStore,
         executor: ProposalExecutor,
@@ -39,6 +40,7 @@ class Engine:
         self._account = account
         self._orders = orders
         self._fill_buffer = fill_buffer
+        self._order_update_buffer = order_update_buffer
         self._log_writer = log_writer
         self._store = store
         self._executor = executor
@@ -68,10 +70,14 @@ class Engine:
         recent_fills = list(self._fill_buffer)
         self._fill_buffer.clear()
 
+        recent_order_updates = list(self._order_update_buffer)
+        self._order_update_buffer.clear()
+
         try:
             await self._collector.collect(self._config.watchlist)
         except Exception as exc:
             self._fill_buffer[:0] = recent_fills  # restore fills for next tick
+            self._order_update_buffer[:0] = recent_order_updates  # restore updates
             self._log_writer.write({
                 "event": "collector_error",
                 "time": now.isoformat(),
@@ -82,6 +88,10 @@ class Engine:
         self._store.atomic_write_text(
             self._store.recent_fills_path(),
             json.dumps(recent_fills, indent=2, default=str),
+        )
+        self._store.atomic_write_text(
+            self._store.recent_order_updates_path(),
+            json.dumps(recent_order_updates, indent=2, default=str),
         )
 
         balance = await self._account.get_balance()
@@ -94,6 +104,7 @@ class Engine:
         )
         if daily_pnl < -loss_threshold:
             self._fill_buffer[:0] = recent_fills  # preserve unprocessed fills
+            self._order_update_buffer[:0] = recent_order_updates
             self._circuit_breaker_tripped = True
             self._log_writer.write({
                 "event": "circuit_breaker_tripped",
@@ -116,6 +127,7 @@ class Engine:
             positions=positions,
             open_orders=open_orders,
             recent_fills=recent_fills,
+            recent_order_updates=recent_order_updates,
             daily_pnl=daily_pnl,
         )
 
