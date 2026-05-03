@@ -19,6 +19,9 @@ proposed_trades file. The system will read the file after you exit, validate eac
 proposal against per-trade size limits, and submit approved orders to the broker.
 Results from the previous tick (executions, rejections, broker errors) are in the
 recent_proposal_results file.
+- Broker-side order status changes (rejections, cancellations, partial-fill progress)
+  appear in `recent_order_updates_since_last_tick` and the recent_order_updates file
+  in real time, as the broker reports them.
 
 Trade proposal schema (one JSON object per line):
 
@@ -61,6 +64,7 @@ class PromptBuilder:
         positions: list[dict],
         open_orders: list[dict],
         recent_fills: list[dict],
+        recent_order_updates: list[dict],
         daily_pnl: float,
     ) -> str:
         state = {
@@ -69,6 +73,7 @@ class PromptBuilder:
             "positions": positions,
             "open_orders": open_orders,
             "recent_fills_since_last_tick": recent_fills,
+            "recent_order_updates_since_last_tick": recent_order_updates,
             "daily_pnl": daily_pnl,
         }
 
@@ -77,6 +82,7 @@ class PromptBuilder:
             "balance": str(self._store.balance_path()),
             "open_orders": str(self._store.open_orders_path()),
             "recent_fills": str(self._store.recent_fills_path()),
+            "recent_order_updates": str(self._store.recent_order_updates_path()),
             "proposed_trades": str(self._store.proposed_trades_path()),
             "recent_proposal_results": str(self._store.proposal_results_path()),
         }
