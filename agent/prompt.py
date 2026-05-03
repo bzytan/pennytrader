@@ -43,6 +43,13 @@ Trade proposal schema (one JSON object per line):
 Valid side values: "buy", "sell". Valid order_type values: "limit", "market".
 Valid option_type values: "call", "put".
 
+Past performance and your accumulated learnings:
+- performance.json — your track record across windows (today, last 7 / 30 days,
+  all-time, per-symbol breakdown), plus open-position unrealized P&L.
+- learnings/learnings.jsonl — observations from your prior reflections. Active
+  entries (active=true) represent your current beliefs about what works and
+  what doesn't. Consult both before sizing positions and choosing trades.
+
 Important:
 - Doing nothing is often the right decision. Do not feel obligated to trade.
 - Each invocation is stateless — you have no memory of prior ticks. State lives in
@@ -85,6 +92,8 @@ class PromptBuilder:
             "recent_order_updates": str(self._store.recent_order_updates_path()),
             "proposed_trades": str(self._store.proposed_trades_path()),
             "recent_proposal_results": str(self._store.proposal_results_path()),
+            "performance": str(self._store.performance_path()),
+            "learnings": str(self._store.learnings_path()),
         }
         for symbol in self._watchlist:
             files[f"quote_{symbol}"] = str(self._store.quote_path(symbol))

@@ -8,7 +8,7 @@ class DataStore:
         self.root = Path(root)
 
     def ensure_dirs(self) -> None:
-        for sub in ("quotes", "history", "options", "account", "log"):
+        for sub in ("quotes", "history", "options", "account", "log", "ledger", "learnings", "dreams"):
             (self.root / sub).mkdir(parents=True, exist_ok=True)
 
     def quote_path(self, symbol: str) -> Path:
@@ -43,6 +43,24 @@ class DataStore:
 
     def decision_log_path(self, day: date) -> Path:
         return self.root / "log" / f"decisions-{day.isoformat()}.jsonl"
+
+    def trades_path(self) -> Path:
+        return self.root / "ledger" / "trades.jsonl"
+
+    def equity_curve_path(self) -> Path:
+        return self.root / "ledger" / "equity_curve.jsonl"
+
+    def performance_path(self) -> Path:
+        return self.root / "performance.json"
+
+    def learnings_path(self) -> Path:
+        return self.root / "learnings" / "learnings.jsonl"
+
+    def dream_path(self, day: date) -> Path:
+        return self.root / "dreams" / f"{day.isoformat()}.md"
+
+    def last_dream_path(self) -> Path:
+        return self.root / "last_dream.txt"
 
     def atomic_write_text(self, target: Path, content: str) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
