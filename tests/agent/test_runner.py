@@ -65,4 +65,5 @@ async def test_run_passes_prompt_via_stdin():
     args, _kwargs = create.call_args
     assert args[0] == "claude"
     assert "--print" in args
+    assert "--dangerously-skip-permissions" in args
     fake_proc.communicate.assert_awaited_once_with(input=b"hello prompt")

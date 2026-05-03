@@ -19,7 +19,7 @@ class AgentRunner:
     async def run(self, prompt: str) -> AgentResult:
         start = monotonic()
         proc = await asyncio.create_subprocess_exec(
-            "claude", "--print",
+            "claude", "--print", "--dangerously-skip-permissions",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
