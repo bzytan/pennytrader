@@ -74,3 +74,41 @@ def test_atomic_write_replaces_existing(tmp_path):
     target.write_text("old")
     store.atomic_write_text(target, "new")
     assert target.read_text() == "new"
+
+
+def test_trades_path(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.trades_path() == tmp_path / "ledger" / "trades.jsonl"
+
+
+def test_equity_curve_path(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.equity_curve_path() == tmp_path / "ledger" / "equity_curve.jsonl"
+
+
+def test_performance_path(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.performance_path() == tmp_path / "performance.json"
+
+
+def test_learnings_path(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.learnings_path() == tmp_path / "learnings" / "learnings.jsonl"
+
+
+def test_dream_path_uses_date(tmp_path):
+    from datetime import date
+    store = DataStore(tmp_path)
+    assert store.dream_path(date(2026, 5, 4)) == tmp_path / "dreams" / "2026-05-04.md"
+
+
+def test_last_dream_path(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.last_dream_path() == tmp_path / "last_dream.txt"
+
+
+def test_ensure_dirs_creates_new_subdirs(tmp_path):
+    store = DataStore(tmp_path)
+    store.ensure_dirs()
+    for sub in ("ledger", "learnings", "dreams"):
+        assert (tmp_path / sub).is_dir()
