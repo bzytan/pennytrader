@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -81,7 +81,7 @@ async def test_collect_writes_quote_file(
         history_config=history_config, options_config=options_config,
         upcoming_expiries_provider=lambda symbol, n: [date(2024, 1, 19)],
     )
-    await collector.collect(["AAPL"])
+    await collector.collect(["AAPL"], now=datetime(2024, 1, 16, 10, 30))
 
     quote = json.loads(store.quote_path("AAPL").read_text())
     assert quote["symbol"] == "AAPL"
@@ -97,7 +97,7 @@ async def test_collect_writes_history_csv(
         history_config=history_config, options_config=options_config,
         upcoming_expiries_provider=lambda symbol, n: [date(2024, 1, 19)],
     )
-    await collector.collect(["AAPL"])
+    await collector.collect(["AAPL"], now=datetime(2024, 1, 16, 10, 30))
 
     text = store.history_path("AAPL", "1m").read_text()
     assert "time,open,close,high,low,volume,turnover" in text
@@ -113,7 +113,7 @@ async def test_collect_writes_option_chain(
         history_config=history_config, options_config=options_config,
         upcoming_expiries_provider=lambda symbol, n: [date(2024, 1, 19)],
     )
-    await collector.collect(["AAPL"])
+    await collector.collect(["AAPL"], now=datetime(2024, 1, 16, 10, 30))
 
     chain_path = store.option_chain_path("AAPL", date(2024, 1, 19))
     chain = json.loads(chain_path.read_text())
@@ -129,7 +129,7 @@ async def test_collect_writes_account_files(
         history_config=history_config, options_config=options_config,
         upcoming_expiries_provider=lambda symbol, n: [date(2024, 1, 19)],
     )
-    await collector.collect(["AAPL"])
+    await collector.collect(["AAPL"], now=datetime(2024, 1, 16, 10, 30))
 
     balance = json.loads(store.balance_path().read_text())
     assert balance["cash"] == 10000.0
@@ -148,7 +148,7 @@ async def test_collect_handles_multiple_symbols(
         history_config=history_config, options_config=options_config,
         upcoming_expiries_provider=lambda symbol, n: [date(2024, 1, 19)],
     )
-    await collector.collect(["AAPL", "SPY"])
+    await collector.collect(["AAPL", "SPY"], now=datetime(2024, 1, 16, 10, 30))
 
     assert store.quote_path("AAPL").exists()
     assert store.quote_path("SPY").exists()

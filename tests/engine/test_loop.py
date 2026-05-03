@@ -87,7 +87,10 @@ async def test_tick_invokes_collector_and_runner_when_open(deps, calendar):
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
-    collector.collect.assert_awaited_once_with(["AAPL"])
+    collector.collect.assert_awaited_once()
+    args, kwargs = collector.collect.call_args
+    assert args[0] == ["AAPL"]
+    assert kwargs["now"] == open_time
     runner.run.assert_awaited_once()
 
 

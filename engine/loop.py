@@ -80,7 +80,7 @@ class Engine:
         self._order_update_buffer.clear()
 
         try:
-            await self._collector.collect(self._config.watchlist)
+            await self._collector.collect(self._config.watchlist, now=now)
         except Exception as exc:
             self._fill_buffer[:0] = recent_fills  # restore fills for next tick
             self._order_update_buffer[:0] = recent_order_updates  # restore updates

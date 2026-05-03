@@ -34,10 +34,10 @@ class Collector:
         self._options_config = options_config
         self._upcoming_expiries = upcoming_expiries_provider
 
-    async def collect(self, watchlist: list[str]) -> None:
+    async def collect(self, watchlist: list[str], now: datetime) -> None:
         for symbol in watchlist:
             await self._write_quote(symbol)
-            await self._write_history(symbol)
+            await self._write_history(symbol, now=now)
             await self._write_options(symbol)
         await self._write_account()
 
@@ -47,8 +47,8 @@ class Collector:
             self._store.quote_path(symbol), json.dumps(quote, indent=2)
         )
 
-    async def _write_history(self, symbol: str) -> None:
-        end = datetime.now()
+    async def _write_history(self, symbol: str, now: datetime) -> None:
+        end = now
         start = end - timedelta(hours=self._history_config.lookback_hours)
         start_date = start.date()
         end_date = end.date()
