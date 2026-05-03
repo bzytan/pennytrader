@@ -131,6 +131,7 @@ async def _run_backtest(args) -> int:
     )
 
     class _LogWriter:
+        """Writes JSONL to disk and prints a human-readable summary to stderr."""
         def __init__(self, store): self._store = store
         def write(self, entry: dict) -> None:
             from datetime import datetime as dt
@@ -138,6 +139,55 @@ async def _run_backtest(args) -> int:
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a") as f:
                 f.write(json.dumps(entry, default=str) + "\n")
+            self._print_summary(entry)
+
+        @staticmethod
+        def _print_summary(e: dict) -> None:
+            ev = e.get("event", "?")
+            t = e.get("time", "")[11:19] if e.get("time") else ""  # HH:MM:SS
+            if ev == "agent_tick":
+                pnl = e.get("daily_pnl", 0.0)
+                dur = e.get("duration_seconds", 0.0)
+                exit_code = e.get("exit_code", "?")
+                fills = len(e.get("fills_processed", []))
+                cf = e.get("consecutive_failures", 0)
+                status = "OK" if exit_code == 0 else f"FAIL exit={exit_code}"
+                fail_note = f" failures={cf}" if cf else ""
+                fill_note = f" fills={fills}" if fills else ""
+                print(f"  [{t}] tick {status} ({dur:.1f}s) pnl=${pnl:.2f}{fill_note}{fail_note}",
+                      file=sys.stderr, flush=True)
+            elif ev == "proposal_executed":
+                r = e.get("result", {})
+                status = r.get("status", "?")
+                if status == "placed":
+                    spec = r.get("proposal", {}).get("spec", {})
+                    print(f"  [{t}]   → placed {spec.get('side','?')} {spec.get('qty','?')} {spec.get('symbol','?')} @ ${spec.get('price','?')}  id={r.get('order_id','?')}",
+                          file=sys.stderr, flush=True)
+                elif status == "rejected":
+                    print(f"  [{t}]   ✗ rejected: {r.get('error','')[:120]}",
+                          file=sys.stderr, flush=True)
+                else:
+                    print(f"  [{t}]   {status}: {r}", file=sys.stderr, flush=True)
+            elif ev == "circuit_breaker_tripped":
+                pnl = e.get("daily_pnl", 0.0)
+                print(f"  [{t}] !! CIRCUIT BREAKER TRIPPED  daily_pnl=${pnl:.2f}",
+                      file=sys.stderr, flush=True)
+            elif ev == "halted":
+                print(f"  [{t}] !! HALTED  consecutive_failures={e.get('consecutive_failures','?')}",
+                      file=sys.stderr, flush=True)
+            elif ev == "collector_error":
+                print(f"  [{t}] collector_error: {e.get('error','')[:120]}",
+                      file=sys.stderr, flush=True)
+            elif ev == "dream_completed":
+                dur = e.get("duration_seconds", 0.0)
+                print(f"  [{t}] dream done ({dur:.1f}s)", file=sys.stderr, flush=True)
+            elif ev == "dream_failed":
+                phase = e.get("phase", "?")
+                print(f"  [{t}] dream FAILED ({phase}): {(e.get('error') or e.get('stderr') or '')[:120]}",
+                      file=sys.stderr, flush=True)
+            elif ev == "dream_validation_failed":
+                print(f"  [{t}] dream rejected (output validation)",
+                      file=sys.stderr, flush=True)
 
     log_writer = _LogWriter(run_store)
 
@@ -164,7 +214,27 @@ async def _run_backtest(args) -> int:
         dream_every_n_days=args.dream_every_n_days,
     )
 
-    print(f"Running backtest. Output: {run_dir}")
+    print(f"Running backtest. Output: {run_dir}", flush=True)
+    print(f"  cadence: heartbeat={args.heartbeat_minutes}m, dream every {args.dream_every_n_days} simulated days",
+          flush=True)
+    print(f"  range: {args.start} → {args.end}, watchlist={watchlist}", flush=True)
+    print(f"  log lines below show events as they fire (also captured in {run_dir}/log/)",
+          file=sys.stderr, flush=True)
+
+    # Wrap engine.tick and engine.run_dream_if_due to print "starting" notices
+    # so silent claude invocations don't look like a hang
+    _orig_tick = engine.tick
+    _orig_dream = engine.run_dream_if_due
+    async def _tick(now):
+        print(f"  [{now.strftime('%Y-%m-%d %H:%M')}] tick start...", file=sys.stderr, flush=True)
+        return await _orig_tick(now=now)
+    async def _dream(now):
+        print(f"  [{now.strftime('%Y-%m-%d %H:%M')}] dream start (this can take 30-60s)...",
+              file=sys.stderr, flush=True)
+        return await _orig_dream(now=now)
+    engine.tick = _tick
+    engine.run_dream_if_due = _dream
+
     manifest = await bt_runner.run()
     print(json.dumps(manifest, indent=2))
     print(f"Done. Run directory: {run_dir}")
