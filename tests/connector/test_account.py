@@ -105,17 +105,18 @@ async def test_get_balance_raises_on_empty_response(mock_conn):
 
 
 async def test_get_account_info_returns_paper_environment(mock_conn):
-    df = pd.DataFrame([{
-        "acc_id": "12345678",
-        "currency": "USD",
-        "acc_type": "MARGIN",
-    }])
+    df = pd.DataFrame([
+        {"acc_id": "99999999", "currency": "USD", "acc_type": "MARGIN",
+         "trd_env": ft.TrdEnv.REAL},
+        {"acc_id": "12345678", "currency": "USD", "acc_type": "MARGIN",
+         "trd_env": ft.TrdEnv.SIMULATE},
+    ])
     mock_conn.trade_ctx.get_acc_list.return_value = (ft.RET_OK, df)
 
     acct = Account(mock_conn)
     result = await acct.get_account_info()
 
-    assert result["account_id"] == "12345678"
+    assert result["account_id"] == "12345678"  # paper, not the real one
     assert result["currency"] == "USD"
     assert result["environment"] == "paper"
 

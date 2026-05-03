@@ -43,7 +43,9 @@ class Account:
         loop = asyncio.get_running_loop()
         ret, data = await loop.run_in_executor(
             None,
-            lambda: self._conn.trade_ctx.accinfo_query(trd_env=self._conn.trd_env),
+            lambda: self._conn.trade_ctx.accinfo_query(
+                trd_env=self._conn.trd_env, currency=ft.Currency.USD,
+            ),
         )
         if ret != ft.RET_OK:
             raise MoomooMarketDataError(str(data), error_code=ret)
@@ -61,17 +63,20 @@ class Account:
     async def get_account_info(self) -> dict:
         loop = asyncio.get_running_loop()
         ret, data = await loop.run_in_executor(
-            None,
-            lambda: self._conn.trade_ctx.get_acc_list(trd_env=self._conn.trd_env),
+            None, self._conn.trade_ctx.get_acc_list,
         )
         if ret != ft.RET_OK:
             raise MoomooMarketDataError(str(data), error_code=ret)
         if data.empty:
             raise MoomooMarketDataError("No account data returned")
-        row = data.iloc[0]
-        env = "paper" if self._conn.trd_env == ft.TrdEnv.SIMULATE else "live"
+        # get_acc_list returns all accounts (real + paper); filter to requested env
+        env_label = "paper" if self._conn.trd_env == ft.TrdEnv.SIMULATE else "live"
+        matching = data[data["trd_env"] == self._conn.trd_env]
+        if matching.empty:
+            raise MoomooMarketDataError(f"No {env_label} account found")
+        row = matching.iloc[0]
         return {
             "account_id": str(row["acc_id"]),
-            "currency": row["currency"],
-            "environment": env,
+            "currency": row.get("currency", "USD"),
+            "environment": env_label,
         }

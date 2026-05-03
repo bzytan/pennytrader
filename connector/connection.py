@@ -69,10 +69,10 @@ class ConnectionManager:
         def _make_contexts() -> tuple[ft.OpenQuoteContext, ft.OpenSecTradeContext]:
             quote_ctx = ft.OpenQuoteContext(host=self.host, port=self.port)
             trade_ctx = ft.OpenSecTradeContext(
+                filter_trdmarket=ft.TrdMarket.US,
                 host=self.host,
                 port=self.port,
                 security_firm=ft.SecurityFirm.FUTUINC,
-                trd_env=self.trd_env,
             )
             return quote_ctx, trade_ctx
 
