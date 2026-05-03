@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from typing import Protocol
 
+from agent.dream import DreamRunner
 from agent.prompt import PromptBuilder
 from agent.runner import AgentResult, AgentRunner
 from connector.account import Account
@@ -30,10 +31,11 @@ class Engine:
         orders: Orders,
         fill_buffer: list[dict],
         order_update_buffer: list[dict],
-        log_writer: _LogWriter,
-        store: DataStore,
         executor: ProposalExecutor,
+        store: DataStore,
         calendar: TradingCalendar,
+        dream_runner: DreamRunner,
+        log_writer: _LogWriter,
     ) -> None:
         self._config = config
         self._collector = collector
@@ -43,10 +45,11 @@ class Engine:
         self._orders = orders
         self._fill_buffer = fill_buffer
         self._order_update_buffer = order_update_buffer
-        self._log_writer = log_writer
-        self._store = store
         self._executor = executor
+        self._store = store
         self._calendar = calendar
+        self._dream_runner = dream_runner
+        self._log_writer = log_writer
 
         self._baseline_total_assets: float | None = None
         self._consecutive_failures = 0
@@ -181,3 +184,14 @@ class Engine:
                 "time": now.isoformat(),
                 "consecutive_failures": self._consecutive_failures,
             })
+
+    async def run_dream_if_due(self, now: datetime) -> None:
+        today_str = now.date().isoformat()
+        last_path = self._store.last_dream_path()
+        if last_path.exists() and last_path.read_text().strip() == today_str:
+            return
+        try:
+            await self._dream_runner.run(now=now)
+        except Exception:
+            # Dream failures must never halt trading
+            pass
