@@ -1,5 +1,5 @@
 mode: paper
-heartbeat_interval_seconds: 60
+heartbeat_interval_seconds: 300
 claude_timeout_seconds: 300
 
 market_hours:
