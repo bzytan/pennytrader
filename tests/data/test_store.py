@@ -46,6 +46,13 @@ def test_proposal_results_path(tmp_path):
     assert store.proposal_results_path() == tmp_path / "account" / "recent_proposal_results.json"
 
 
+def test_recent_order_updates_path(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.recent_order_updates_path() == (
+        tmp_path / "account" / "recent_order_updates.json"
+    )
+
+
 def test_decision_log_path_uses_date(tmp_path):
     from datetime import date
     store = DataStore(tmp_path)

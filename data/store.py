@@ -32,6 +32,9 @@ class DataStore:
     def recent_fills_path(self) -> Path:
         return self.root / "account" / "recent_fills.json"
 
+    def recent_order_updates_path(self) -> Path:
+        return self.root / "account" / "recent_order_updates.json"
+
     def proposed_trades_path(self) -> Path:
         return self.root / "account" / "proposed_trades.jsonl"
 
