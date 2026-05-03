@@ -149,8 +149,8 @@ class Orders:
                     "order_type": row["order_type"],
                     "price": float(row["price"]),
                     "qty": int(row["qty"]),
-                    "filled_qty": int(row["filled_qty"]),
-                    "avg_fill_price": float(row["avg_fill_price"]),
+                    "filled_qty": int(row["dealt_qty"]),
+                    "avg_fill_price": float(row["dealt_avg_price"]) if row["dealt_avg_price"] not in (None, "") else 0.0,
                     "status": mapped_status,
                     "created_at": row["create_time"],
                 })
@@ -204,7 +204,7 @@ class Orders:
                             "side": row["trd_side"],
                             "qty": int(row["qty"]),
                             "price": float(row["price"]),
-                            "filled_qty": int(row["filled_qty"]),
+                            "filled_qty": int(row.get("dealt_qty", 0) or 0),
                             "order_status": row["order_status"],
                             "updated_at": updated_at,
                         })
