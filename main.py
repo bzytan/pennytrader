@@ -4,8 +4,11 @@ import signal
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from agent.dream import DreamRunner
 from agent.prompt import PromptBuilder
 from agent.runner import AgentRunner
+from analytics.ledger import Ledger
+from analytics.performance import compute_performance
 from connector.account import Account
 from connector.connection import ConnectionManager, TradingMode
 from connector.market_data import MarketData
@@ -87,12 +90,19 @@ async def main() -> None:
         )
         log_writer = JsonlLogWriter(store)
 
+        ledger = Ledger(store=store)
+        dream_runner = DreamRunner(
+            ledger=ledger, performance_fn=compute_performance,
+            runner=runner, store=store, log_writer=log_writer,
+            account=account, orders=orders,
+        )
+
         engine = Engine(
             config=config, collector=collector, runner=runner,
             prompt_builder=prompt_builder, account=account, orders=orders,
             fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
-            log_writer=log_writer, store=store, executor=executor,
-            calendar=calendar,
+            executor=executor, store=store, calendar=calendar,
+            dream_runner=dream_runner, log_writer=log_writer,
         )
 
         stop_event = asyncio.Event()
@@ -110,6 +120,7 @@ async def main() -> None:
                 except asyncio.TimeoutError:
                     pass
                 continue
+            await engine.run_dream_if_due(now=now)
             await engine.tick(now=now)
             if engine.halted:
                 break
