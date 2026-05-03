@@ -54,6 +54,11 @@ def _build_parser() -> argparse.ArgumentParser:
 async def _run_backtest(args) -> int:
     config = load_config(Path(args.config))
     watchlist = [s.strip() for s in args.watchlist.split(",") if s.strip()]
+    # Override config.watchlist so the Engine's collector iterates only the
+    # symbols this backtest has cached data for. Without this, the Engine
+    # reads watchlist from config.yaml (the live trading list) and fails on
+    # any symbol the backtest didn't fetch.
+    config.watchlist = watchlist
     start_d = date.fromisoformat(args.start)
     end_d = date.fromisoformat(args.end)
     tz = ZoneInfo(config.market_hours.tz)
