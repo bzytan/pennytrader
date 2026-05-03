@@ -5,6 +5,7 @@ claude_timeout_seconds: 120
 market_hours:
   open: "09:30"
   close: "16:00"
+  early_close: "13:00"
   tz: "America/New_York"
 
 watchlist:
