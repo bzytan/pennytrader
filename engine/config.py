@@ -9,6 +9,7 @@ import yaml
 class MarketHoursConfig:
     open: str
     close: str
+    early_close: str
     tz: str
 
 

@@ -18,7 +18,7 @@ def _valid_config_dict() -> dict:
         "mode": "paper",
         "heartbeat_interval_seconds": 60,
         "claude_timeout_seconds": 120,
-        "market_hours": {"open": "09:30", "close": "16:00", "tz": "America/New_York"},
+        "market_hours": {"open": "09:30", "close": "16:00", "early_close": "13:00", "tz": "America/New_York"},
         "watchlist": ["AAPL", "SPY"],
         "history": {"interval": "1m", "lookback_hours": 6.5},
         "options": {"nearest_expiries": 2},
@@ -39,6 +39,7 @@ def test_load_config_returns_typed_config(tmp_path):
     assert config.watchlist == ["AAPL", "SPY"]
     assert isinstance(config.market_hours, MarketHoursConfig)
     assert config.market_hours.open == "09:30"
+    assert config.market_hours.early_close == "13:00"
     assert isinstance(config.safety, SafetyConfig)
     assert config.safety.max_position_size_pct == 5.0
 

@@ -12,12 +12,20 @@ from engine.config import (
 from engine.loop import Engine
 
 
+@pytest.fixture
+def calendar():
+    cal = MagicMock()
+    cal.is_trading_day = MagicMock(return_value=True)
+    cal.session_type = MagicMock(return_value="WHOLE")
+    return cal
+
+
 def _make_config(**overrides):
     base = Config(
         mode="paper",
         heartbeat_interval_seconds=60,
         claude_timeout_seconds=120,
-        market_hours=MarketHoursConfig(open="09:30", close="16:00", tz="America/New_York"),
+        market_hours=MarketHoursConfig(open="09:30", close="16:00", early_close="13:00", tz="America/New_York"),
         watchlist=["AAPL"],
         history=HistoryConfig(interval="1m", lookback_hours=6.5),
         options=OptionsConfig(nearest_expiries=2),
@@ -64,7 +72,7 @@ def deps():
             fill_buffer, order_update_buffer, executor, store)
 
 
-async def test_tick_invokes_collector_and_runner_when_open(deps):
+async def test_tick_invokes_collector_and_runner_when_open(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -72,6 +80,7 @@ async def test_tick_invokes_collector_and_runner_when_open(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -79,7 +88,7 @@ async def test_tick_invokes_collector_and_runner_when_open(deps):
     runner.run.assert_awaited_once()
 
 
-async def test_tick_skips_when_market_closed(deps):
+async def test_tick_skips_when_market_closed(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -87,6 +96,7 @@ async def test_tick_skips_when_market_closed(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     closed_time = datetime(2024, 1, 16, 18, 0, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=closed_time)
@@ -94,7 +104,7 @@ async def test_tick_skips_when_market_closed(deps):
     runner.run.assert_not_awaited()
 
 
-async def test_circuit_breaker_trips_on_excessive_loss(deps):
+async def test_circuit_breaker_trips_on_excessive_loss(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -102,6 +112,7 @@ async def test_circuit_breaker_trips_on_excessive_loss(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     engine.set_baseline_total_assets(100000.0)
     account.get_balance = AsyncMock(return_value={
@@ -114,7 +125,7 @@ async def test_circuit_breaker_trips_on_excessive_loss(deps):
     runner.run.assert_not_awaited()
 
 
-async def test_consecutive_agent_failures_halt_engine(deps):
+async def test_consecutive_agent_failures_halt_engine(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     runner.run = AsyncMock(return_value=AgentResult(
@@ -125,6 +136,7 @@ async def test_consecutive_agent_failures_halt_engine(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     engine.set_baseline_total_assets(100000.0)
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
@@ -136,7 +148,7 @@ async def test_consecutive_agent_failures_halt_engine(deps):
     assert runner.run.await_count == 3  # halted, no further calls
 
 
-async def test_tick_drains_fill_buffer(deps):
+async def test_tick_drains_fill_buffer(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     fill_buffer.append({"order_id": "ORD001", "symbol": "US.AAPL",
                         "side": "BUY", "qty": 10, "price": 150.0,
@@ -147,6 +159,7 @@ async def test_tick_drains_fill_buffer(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     engine.set_baseline_total_assets(100000.0)
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
@@ -163,7 +176,7 @@ async def test_tick_drains_fill_buffer(deps):
     assert fills_call is not None
 
 
-async def test_baseline_auto_initializes_from_first_balance(deps):
+async def test_baseline_auto_initializes_from_first_balance(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -171,6 +184,7 @@ async def test_baseline_auto_initializes_from_first_balance(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -178,7 +192,7 @@ async def test_baseline_auto_initializes_from_first_balance(deps):
     assert engine._baseline_total_assets == 100000.0
 
 
-async def test_collector_failure_preserves_fills_for_next_tick(deps):
+async def test_collector_failure_preserves_fills_for_next_tick(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     fill_buffer.append({"order_id": "ORD001", "symbol": "US.AAPL",
                         "side": "BUY", "qty": 1, "price": 100.0,
@@ -191,6 +205,7 @@ async def test_collector_failure_preserves_fills_for_next_tick(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=log_writer, store=store, executor=executor,
+        calendar=calendar,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -203,7 +218,7 @@ async def test_collector_failure_preserves_fills_for_next_tick(deps):
     assert "collector_error" in log_calls
 
 
-async def test_executor_runs_after_agent_returns(deps):
+async def test_executor_runs_after_agent_returns(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -211,6 +226,7 @@ async def test_executor_runs_after_agent_returns(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     engine.set_baseline_total_assets(100000.0)
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
@@ -218,7 +234,7 @@ async def test_executor_runs_after_agent_returns(deps):
     executor.execute.assert_awaited_once()
 
 
-async def test_executor_does_not_run_if_market_closed(deps):
+async def test_executor_does_not_run_if_market_closed(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -226,13 +242,14 @@ async def test_executor_does_not_run_if_market_closed(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     closed_time = datetime(2024, 1, 16, 18, 0, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=closed_time)
     executor.execute.assert_not_awaited()
 
 
-async def test_circuit_breaker_state_still_collects_data(deps):
+async def test_circuit_breaker_state_still_collects_data(deps, calendar):
     collector, runner, prompt_builder, account, orders, fill_buffer, order_update_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
@@ -240,6 +257,7 @@ async def test_circuit_breaker_state_still_collects_data(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         log_writer=MagicMock(), store=store, executor=executor,
+        calendar=calendar,
     )
     engine._circuit_breaker_tripped = True
     engine.set_baseline_total_assets(100000.0)
@@ -249,7 +267,7 @@ async def test_circuit_breaker_state_still_collects_data(deps):
     runner.run.assert_not_awaited()
 
 
-async def test_tick_drains_order_update_buffer(deps):
+async def test_tick_drains_order_update_buffer(deps, calendar):
     (collector, runner, prompt_builder, account, orders,
      fill_buffer, order_update_buffer, executor, store) = deps
     order_update_buffer.append({
@@ -263,6 +281,7 @@ async def test_tick_drains_order_update_buffer(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         executor=executor, store=store, log_writer=MagicMock(),
+        calendar=calendar,
     )
     engine.set_baseline_total_assets(100000.0)
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
@@ -278,7 +297,7 @@ async def test_tick_drains_order_update_buffer(deps):
     assert Path("/tmp/recent_order_updates.json") in write_paths
 
 
-async def test_collector_failure_preserves_order_updates(deps):
+async def test_collector_failure_preserves_order_updates(deps, calendar):
     (collector, runner, prompt_builder, account, orders,
      fill_buffer, order_update_buffer, executor, store) = deps
     order_update_buffer.append({
@@ -294,6 +313,7 @@ async def test_collector_failure_preserves_order_updates(deps):
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
         executor=executor, store=store, log_writer=log_writer,
+        calendar=calendar,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -301,4 +321,22 @@ async def test_collector_failure_preserves_order_updates(deps):
     # update should be back in the buffer
     assert len(order_update_buffer) == 1
     assert order_update_buffer[0]["order_id"] == "ORD001"
+    runner.run.assert_not_awaited()
+
+
+async def test_tick_skips_on_non_trading_day(deps, calendar):
+    (collector, runner, prompt_builder, account, orders,
+     fill_buffer, order_update_buffer, executor, store) = deps
+    calendar.is_trading_day = MagicMock(return_value=False)
+    config = _make_config()
+    engine = Engine(
+        config=config, collector=collector, runner=runner,
+        prompt_builder=prompt_builder, account=account, orders=orders,
+        fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
+        executor=executor, store=store, calendar=calendar, log_writer=MagicMock(),
+    )
+    open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
+    await engine.tick(now=open_time)
+
+    collector.collect.assert_not_awaited()
     runner.run.assert_not_awaited()

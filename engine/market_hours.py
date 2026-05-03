@@ -1,7 +1,11 @@
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from .calendar import TradingCalendar
 from .config import MarketHoursConfig
+
+
+_MAX_NEXT_OPEN_LOOKAHEAD_DAYS = 14
 
 
 def _parse_time(s: str) -> time:
@@ -9,17 +13,24 @@ def _parse_time(s: str) -> time:
     return time(int(hh), int(mm))
 
 
-def is_market_open(now: datetime, config: MarketHoursConfig) -> bool:
+def is_market_open(
+    now: datetime, config: MarketHoursConfig, calendar: TradingCalendar,
+) -> bool:
     tz = ZoneInfo(config.tz)
     local = now.astimezone(tz)
-    if local.weekday() >= 5:  # Saturday=5, Sunday=6
+    if not calendar.is_trading_day(local.date()):
         return False
     open_t = _parse_time(config.open)
-    close_t = _parse_time(config.close)
+    if calendar.session_type(local.date()) == "MORNING":
+        close_t = _parse_time(config.early_close)
+    else:
+        close_t = _parse_time(config.close)
     return open_t <= local.time() < close_t
 
 
-def next_open(now: datetime, config: MarketHoursConfig) -> datetime:
+def next_open(
+    now: datetime, config: MarketHoursConfig, calendar: TradingCalendar,
+) -> datetime:
     tz = ZoneInfo(config.tz)
     local = now.astimezone(tz)
     open_t = _parse_time(config.open)
@@ -29,6 +40,11 @@ def next_open(now: datetime, config: MarketHoursConfig) -> datetime:
     )
     if local >= candidate:
         candidate = candidate + timedelta(days=1)
-    while candidate.weekday() >= 5:
+    for _ in range(_MAX_NEXT_OPEN_LOOKAHEAD_DAYS):
+        if calendar.is_trading_day(candidate.date()):
+            return candidate
         candidate = candidate + timedelta(days=1)
-    return candidate
+    raise RuntimeError(
+        f"No trading day found within {_MAX_NEXT_OPEN_LOOKAHEAD_DAYS} days "
+        f"of {now} — calendar may be unloaded or exhausted."
+    )

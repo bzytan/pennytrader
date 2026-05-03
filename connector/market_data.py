@@ -109,6 +109,26 @@ class MarketData:
         task = asyncio.create_task(self._dispatch(queue, callback))
         self._subscription_tasks.append(task)
 
+    async def get_trading_days(
+        self, market: str, start: date, end: date
+    ) -> list[dict]:
+        loop = asyncio.get_running_loop()
+        market_enum = getattr(ft.TradeDateMarket, market)
+        ret, data = await loop.run_in_executor(
+            None,
+            lambda: self._conn.quote_ctx.request_trading_days(
+                market=market_enum,
+                start=start.isoformat(),
+                end=end.isoformat(),
+            ),
+        )
+        if ret != ft.RET_OK:
+            raise MoomooMarketDataError(str(data), error_code=ret)
+        return [
+            {"date": date.fromisoformat(row["time"]), "type": row["trade_date_type"]}
+            for row in data
+        ]
+
     @staticmethod
     async def _dispatch(queue: asyncio.Queue, callback: Callable[[dict], None]) -> None:
         while True:

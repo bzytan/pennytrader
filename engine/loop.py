@@ -9,6 +9,7 @@ from connector.orders import OrderStatus, Orders
 from data.collector import Collector
 from data.store import DataStore
 
+from .calendar import TradingCalendar
 from .config import Config
 from .executor import ProposalExecutor
 from .market_hours import is_market_open
@@ -32,6 +33,7 @@ class Engine:
         log_writer: _LogWriter,
         store: DataStore,
         executor: ProposalExecutor,
+        calendar: TradingCalendar,
     ) -> None:
         self._config = config
         self._collector = collector
@@ -44,6 +46,7 @@ class Engine:
         self._log_writer = log_writer
         self._store = store
         self._executor = executor
+        self._calendar = calendar
 
         self._baseline_total_assets: float | None = None
         self._consecutive_failures = 0
@@ -64,7 +67,7 @@ class Engine:
     async def tick(self, now: datetime) -> None:
         if self._halted:
             return
-        if not is_market_open(now, self._config.market_hours):
+        if not is_market_open(now, self._config.market_hours, self._calendar):
             return
 
         recent_fills = list(self._fill_buffer)

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from agent.prompt import PromptBuilder
@@ -13,6 +13,7 @@ from connector.options import Options
 from connector.orders import Orders
 from data.collector import Collector
 from data.store import DataStore
+from engine.calendar import TradingCalendar
 from engine.config import load_config
 from engine.executor import ProposalExecutor
 from engine.loop import Engine
@@ -56,6 +57,10 @@ async def main() -> None:
         account = Account(conn)
         orders = Orders(conn)
 
+        calendar = TradingCalendar(market_data=market_data, market="US")
+        today = datetime.now().date()
+        await calendar.load(start=today, end=today + timedelta(days=365))
+
         collector = Collector(
             store=store, market_data=market_data, options=options,
             account=account, orders=orders,
@@ -87,6 +92,7 @@ async def main() -> None:
             prompt_builder=prompt_builder, account=account, orders=orders,
             fill_buffer=fill_buffer, order_update_buffer=order_update_buffer,
             log_writer=log_writer, store=store, executor=executor,
+            calendar=calendar,
         )
 
         stop_event = asyncio.Event()
@@ -96,8 +102,8 @@ async def main() -> None:
 
         while not stop_event.is_set():
             now = datetime.now().astimezone()
-            if not is_market_open(now, config.market_hours):
-                wakeup = next_open(now, config.market_hours)
+            if not is_market_open(now, config.market_hours, calendar):
+                wakeup = next_open(now, config.market_hours, calendar)
                 wait = max((wakeup - now).total_seconds(), config.heartbeat_interval_seconds)
                 try:
                     await asyncio.wait_for(stop_event.wait(), timeout=wait)
