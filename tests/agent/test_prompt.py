@@ -7,7 +7,7 @@ from agent.prompt import PromptBuilder
 
 def test_prompt_includes_system_role(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"])
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 10000.0, "buying_power": 20000.0,
@@ -18,12 +18,12 @@ def test_prompt_includes_system_role(tmp_path):
         daily_pnl=0.0,
     )
     assert "autonomous trading agent" in prompt.lower()
-    assert "from engine.safe_orders import SafeOrders" in prompt
+    assert "proposed_trades" in prompt
 
 
 def test_prompt_includes_account_state(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"])
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 10000.0, "buying_power": 20000.0,
@@ -40,7 +40,7 @@ def test_prompt_includes_account_state(tmp_path):
 
 def test_prompt_includes_data_file_paths_for_each_watchlist_symbol(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL", "SPY"])
+    builder = PromptBuilder(store=store, watchlist=["AAPL", "SPY"], history_interval="1m")
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,
@@ -54,7 +54,7 @@ def test_prompt_includes_data_file_paths_for_each_watchlist_symbol(tmp_path):
 
 def test_prompt_includes_recent_fills_when_present(tmp_path):
     store = DataStore(tmp_path)
-    builder = PromptBuilder(store=store, watchlist=["AAPL"])
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="1m")
     prompt = builder.build(
         now=datetime(2024, 1, 16, 10, 30),
         balance={"cash": 0.0, "buying_power": 0.0,
@@ -67,3 +67,15 @@ def test_prompt_includes_recent_fills_when_present(tmp_path):
     )
     assert "ORD001" in prompt
     assert "BUY" in prompt
+
+
+def test_prompt_uses_configured_history_interval(tmp_path):
+    store = DataStore(tmp_path)
+    builder = PromptBuilder(store=store, watchlist=["AAPL"], history_interval="5m")
+    prompt = builder.build(
+        now=datetime(2024, 1, 16, 10, 30),
+        balance={"cash": 0.0, "buying_power": 0.0,
+                 "total_assets": 0.0, "market_value": 0.0, "currency": "USD"},
+        positions=[], open_orders=[], recent_fills=[], daily_pnl=0.0,
+    )
+    assert "AAPL_5m.csv" in prompt

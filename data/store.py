@@ -32,6 +32,12 @@ class DataStore:
     def recent_fills_path(self) -> Path:
         return self.root / "account" / "recent_fills.json"
 
+    def proposed_trades_path(self) -> Path:
+        return self.root / "account" / "proposed_trades.jsonl"
+
+    def proposal_results_path(self) -> Path:
+        return self.root / "account" / "recent_proposal_results.json"
+
     def decision_log_path(self, day: date) -> Path:
         return self.root / "log" / f"decisions-{day.isoformat()}.jsonl"
 

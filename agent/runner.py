@@ -38,6 +38,7 @@ class AgentRunner:
             )
         except asyncio.TimeoutError:
             proc.kill()
+            await proc.wait()
             return AgentResult(
                 exit_code=-1, stdout="", stderr="agent invocation timed out",
                 duration_seconds=monotonic() - start, timed_out=True,

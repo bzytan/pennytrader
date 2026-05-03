@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
@@ -50,17 +51,24 @@ def deps():
     orders = MagicMock()
     orders.get_orders = AsyncMock(return_value=[])
     fill_buffer: list[dict] = []
-    return collector, runner, prompt_builder, account, orders, fill_buffer
+    executor = MagicMock()
+    executor.execute = AsyncMock(return_value=[])
+    store = MagicMock()
+    store.proposed_trades_path = MagicMock(return_value=Path("/tmp/proposals.jsonl"))
+    store.proposal_results_path = MagicMock(return_value=Path("/tmp/results.json"))
+    store.recent_fills_path = MagicMock(return_value=Path("/tmp/recent_fills.json"))
+    store.atomic_write_text = MagicMock()
+    return collector, runner, prompt_builder, account, orders, fill_buffer, executor, store
 
 
 async def test_tick_invokes_collector_and_runner_when_open(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
-        fill_buffer=fill_buffer,
-        log_writer=MagicMock(),
+        fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -69,12 +77,13 @@ async def test_tick_invokes_collector_and_runner_when_open(deps):
 
 
 async def test_tick_skips_when_market_closed(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
     )
     closed_time = datetime(2024, 1, 16, 18, 0, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=closed_time)
@@ -83,12 +92,13 @@ async def test_tick_skips_when_market_closed(deps):
 
 
 async def test_circuit_breaker_trips_on_excessive_loss(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
     )
     engine.set_baseline_total_assets(100000.0)
     account.get_balance = AsyncMock(return_value={
@@ -102,7 +112,7 @@ async def test_circuit_breaker_trips_on_excessive_loss(deps):
 
 
 async def test_consecutive_agent_failures_halt_engine(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     config = _make_config()
     runner.run = AsyncMock(return_value=AgentResult(
         exit_code=1, stdout="", stderr="boom", duration_seconds=0.0, timed_out=False,
@@ -111,6 +121,7 @@ async def test_consecutive_agent_failures_halt_engine(deps):
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
     )
     engine.set_baseline_total_assets(100000.0)
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
@@ -123,7 +134,7 @@ async def test_consecutive_agent_failures_halt_engine(deps):
 
 
 async def test_tick_drains_fill_buffer(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     fill_buffer.append({"order_id": "ORD001", "symbol": "US.AAPL",
                         "side": "BUY", "qty": 10, "price": 150.0,
                         "filled_at": "2024-01-16 10:00:00"})
@@ -132,6 +143,7 @@ async def test_tick_drains_fill_buffer(deps):
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
     )
     engine.set_baseline_total_assets(100000.0)
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
@@ -141,15 +153,21 @@ async def test_tick_drains_fill_buffer(deps):
     # prompt_builder was called with the fill in recent_fills
     args, kwargs = prompt_builder.build.call_args
     assert kwargs["recent_fills"][0]["order_id"] == "ORD001"
+    # atomic_write_text was called with the recent_fills path
+    store.atomic_write_text.assert_called()
+    calls = store.atomic_write_text.call_args_list
+    fills_call = next(c for c in calls if c.args[0] == Path("/tmp/recent_fills.json"))
+    assert fills_call is not None
 
 
 async def test_baseline_auto_initializes_from_first_balance(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     config = _make_config()
     engine = Engine(
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -158,7 +176,7 @@ async def test_baseline_auto_initializes_from_first_balance(deps):
 
 
 async def test_collector_failure_preserves_fills_for_next_tick(deps):
-    collector, runner, prompt_builder, account, orders, fill_buffer = deps
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
     fill_buffer.append({"order_id": "ORD001", "symbol": "US.AAPL",
                         "side": "BUY", "qty": 1, "price": 100.0,
                         "filled_at": "2024-01-16 10:00:00"})
@@ -169,6 +187,7 @@ async def test_collector_failure_preserves_fills_for_next_tick(deps):
         config=config, collector=collector, runner=runner,
         prompt_builder=prompt_builder, account=account, orders=orders,
         fill_buffer=fill_buffer, log_writer=log_writer,
+        store=store, executor=executor,
     )
     open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
     await engine.tick(now=open_time)
@@ -179,3 +198,49 @@ async def test_collector_failure_preserves_fills_for_next_tick(deps):
     # collector_error event was logged
     log_calls = [call.args[0]["event"] for call in log_writer.write.call_args_list]
     assert "collector_error" in log_calls
+
+
+async def test_executor_runs_after_agent_returns(deps):
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
+    config = _make_config()
+    engine = Engine(
+        config=config, collector=collector, runner=runner,
+        prompt_builder=prompt_builder, account=account, orders=orders,
+        fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
+    )
+    engine.set_baseline_total_assets(100000.0)
+    open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
+    await engine.tick(now=open_time)
+    executor.execute.assert_awaited_once()
+
+
+async def test_executor_does_not_run_if_market_closed(deps):
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
+    config = _make_config()
+    engine = Engine(
+        config=config, collector=collector, runner=runner,
+        prompt_builder=prompt_builder, account=account, orders=orders,
+        fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
+    )
+    closed_time = datetime(2024, 1, 16, 18, 0, tzinfo=ZoneInfo("America/New_York"))
+    await engine.tick(now=closed_time)
+    executor.execute.assert_not_awaited()
+
+
+async def test_circuit_breaker_state_still_collects_data(deps):
+    collector, runner, prompt_builder, account, orders, fill_buffer, executor, store = deps
+    config = _make_config()
+    engine = Engine(
+        config=config, collector=collector, runner=runner,
+        prompt_builder=prompt_builder, account=account, orders=orders,
+        fill_buffer=fill_buffer, log_writer=MagicMock(),
+        store=store, executor=executor,
+    )
+    engine._circuit_breaker_tripped = True
+    engine.set_baseline_total_assets(100000.0)
+    open_time = datetime(2024, 1, 16, 10, 30, tzinfo=ZoneInfo("America/New_York"))
+    await engine.tick(now=open_time)
+    collector.collect.assert_awaited_once()
+    runner.run.assert_not_awaited()

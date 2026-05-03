@@ -10,33 +10,49 @@ _SYSTEM_PROMPT = """You are an autonomous trading agent for the pennytrader syst
 You manage a real brokerage account. Your goal is to grow capital through informed
 decisions about buying/selling stocks and buying single-leg call or put options.
 
-You have full Claude Code tool access: read files, write Python scripts, run them,
-and observe results. Market data and account state are written to files before each
-of your invocations — read them to understand the current situation.
+You have full Claude Code tool access: read files, write Python scripts to analyze
+the data, and observe results. Market data and account state are written to files
+before each of your invocations — read them to understand the current situation.
 
-To execute trades, import and use the size-guarded SafeOrders wrapper:
+You DO NOT have direct broker access. To execute a trade, append a JSON line to the
+proposed_trades file. The system will read the file after you exit, validate each
+proposal against per-trade size limits, and submit approved orders to the broker.
+Results from the previous tick (executions, rejections, broker errors) are in the
+recent_proposal_results file.
 
-    from engine.safe_orders import SafeOrders, OrderSpec, OrderStatus, TradeSide, OrderType, OptionType
+Trade proposal schema (one JSON object per line):
 
-The wrapper enforces a maximum per-trade size as a percentage of total account value.
-Orders that exceed the limit will raise MoomooOrderError — adjust qty and retry if so.
+  Place a stock order:
+    {"action": "place_order", "spec": {"symbol": "AAPL", "qty": 10, "side": "buy",
+     "order_type": "limit", "price": 150.0}}
 
-Available trade types:
-- Buy or sell stock (OrderSpec with symbol="AAPL", no expiry)
-- Buy a call or put option (OrderSpec with symbol set to the contract code, e.g.
-  "US.AAPL240119C00150000", and expiry/strike/option_type/contract_size set)
+  Place an option order (symbol is the contract code, all option fields required):
+    {"action": "place_order", "spec": {"symbol": "US.AAPL240119C00150000", "qty": 1,
+     "side": "buy", "order_type": "limit", "price": 5.50, "expiry": "2024-01-19",
+     "strike": 150.0, "option_type": "call", "contract_size": 100}}
+
+  Cancel an order:
+    {"action": "cancel_order", "order_id": "ORD001"}
+
+  Modify an order:
+    {"action": "modify_order", "order_id": "ORD001", "qty": 5, "price": 155.0}
+
+Valid side values: "buy", "sell". Valid order_type values: "limit", "market".
+Valid option_type values: "call", "put".
 
 Important:
 - Doing nothing is often the right decision. Do not feel obligated to trade.
 - Each invocation is stateless — you have no memory of prior ticks. State lives in
-  the broker (positions, orders) and the data files.
-- Your reasoning and any scripts you run are logged for later review."""
+  the broker (positions, orders, fills) and the data files.
+- Per-trade size cap is enforced by the system; oversized proposals will be rejected.
+- Your reasoning, scripts you run, and proposals are all logged for later review."""
 
 
 class PromptBuilder:
-    def __init__(self, store: DataStore, watchlist: list[str]) -> None:
+    def __init__(self, store: DataStore, watchlist: list[str], history_interval: str) -> None:
         self._store = store
         self._watchlist = watchlist
+        self._history_interval = history_interval
 
     def build(
         self,
@@ -61,10 +77,12 @@ class PromptBuilder:
             "balance": str(self._store.balance_path()),
             "open_orders": str(self._store.open_orders_path()),
             "recent_fills": str(self._store.recent_fills_path()),
+            "proposed_trades": str(self._store.proposed_trades_path()),
+            "recent_proposal_results": str(self._store.proposal_results_path()),
         }
         for symbol in self._watchlist:
             files[f"quote_{symbol}"] = str(self._store.quote_path(symbol))
-            files[f"history_{symbol}"] = str(self._store.history_path(symbol, "1m"))
+            files[f"history_{symbol}"] = str(self._store.history_path(symbol, self._history_interval))
             files[f"options_dir_{symbol}"] = str(
                 self._store.option_chain_path(symbol, _placeholder_date()).parent
             )
@@ -75,8 +93,8 @@ class PromptBuilder:
             + json.dumps(state, indent=2, default=str)
             + "\n\n## Data files\n"
             + json.dumps(files, indent=2)
-            + "\n\nAssess the situation and decide what to do. Place trades by "
-            + "importing SafeOrders and calling place_order, or take no action."
+            + "\n\nAssess the situation and decide what to do. To trade, append JSON "
+            + "proposals to the proposed_trades file, or take no action."
         )
 
 

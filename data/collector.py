@@ -48,10 +48,12 @@ class Collector:
         )
 
     async def _write_history(self, symbol: str) -> None:
-        end = datetime.now().date()
-        start = end - timedelta(days=2)
+        end = datetime.now()
+        start = end - timedelta(hours=self._history_config.lookback_hours)
+        start_date = start.date()
+        end_date = end.date()
         ktype = _interval_to_ktype(self._history_config.interval)
-        rows = await self._market_data.get_price_history(symbol, start, end, ktype)
+        rows = await self._market_data.get_price_history(symbol, start_date, end_date, ktype)
         header = "time,open,close,high,low,volume,turnover"
         body = "\n".join(
             f"{r['time']},{r['open']},{r['close']},{r['high']},{r['low']},{r['volume']},{r['turnover']}"

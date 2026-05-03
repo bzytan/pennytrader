@@ -44,6 +44,7 @@ async def test_run_kills_on_timeout():
     fake_proc = MagicMock()
     fake_proc.communicate = AsyncMock(side_effect=hang)
     fake_proc.kill = MagicMock()
+    fake_proc.wait = AsyncMock(return_value=0)
     fake_proc.returncode = None
 
     with patch("agent.runner.asyncio.create_subprocess_exec", AsyncMock(return_value=fake_proc)):

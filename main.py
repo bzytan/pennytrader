@@ -14,9 +14,10 @@ from connector.orders import Orders
 from data.collector import Collector
 from data.store import DataStore
 from engine.config import load_config
+from engine.executor import ProposalExecutor
 from engine.loop import Engine
 from engine.market_hours import is_market_open, next_open
-from engine.safe_orders import SafeOrders  # noqa: F401  (imported so agent subprocess sees it)
+from engine.safe_orders import SafeOrders
 
 
 CONFIG_PATH = Path("config.yaml")
@@ -65,14 +66,24 @@ async def main() -> None:
         fill_buffer: list[dict] = []
         await orders.subscribe_fills(lambda fill: fill_buffer.append(fill))
 
+        safe_orders = SafeOrders(
+            orders=orders, account=account,
+            max_position_size_pct=config.safety.max_position_size_pct,
+        )
+        executor = ProposalExecutor(safe_orders=safe_orders)
+
         runner = AgentRunner(timeout_seconds=config.claude_timeout_seconds)
-        prompt_builder = PromptBuilder(store=store, watchlist=config.watchlist)
+        prompt_builder = PromptBuilder(
+            store=store, watchlist=config.watchlist,
+            history_interval=config.history.interval,
+        )
         log_writer = JsonlLogWriter(store)
 
         engine = Engine(
             config=config, collector=collector, runner=runner,
             prompt_builder=prompt_builder, account=account, orders=orders,
             fill_buffer=fill_buffer, log_writer=log_writer,
+            store=store, executor=executor,
         )
 
         stop_event = asyncio.Event()

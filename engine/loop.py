@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Protocol
 
@@ -6,8 +7,10 @@ from agent.runner import AgentResult, AgentRunner
 from connector.account import Account
 from connector.orders import OrderStatus, Orders
 from data.collector import Collector
+from data.store import DataStore
 
 from .config import Config
+from .executor import ProposalExecutor
 from .market_hours import is_market_open
 
 
@@ -26,6 +29,8 @@ class Engine:
         orders: Orders,
         fill_buffer: list[dict],
         log_writer: _LogWriter,
+        store: DataStore,
+        executor: ProposalExecutor,
     ) -> None:
         self._config = config
         self._collector = collector
@@ -35,6 +40,8 @@ class Engine:
         self._orders = orders
         self._fill_buffer = fill_buffer
         self._log_writer = log_writer
+        self._store = store
+        self._executor = executor
 
         self._baseline_total_assets: float | None = None
         self._consecutive_failures = 0
@@ -57,8 +64,6 @@ class Engine:
             return
         if not is_market_open(now, self._config.market_hours):
             return
-        if self._circuit_breaker_tripped:
-            return
 
         recent_fills = list(self._fill_buffer)
         self._fill_buffer.clear()
@@ -73,6 +78,11 @@ class Engine:
                 "error": repr(exc),
             })
             return
+
+        self._store.atomic_write_text(
+            self._store.recent_fills_path(),
+            json.dumps(recent_fills, indent=2, default=str),
+        )
 
         balance = await self._account.get_balance()
         if self._baseline_total_assets is None:
@@ -91,6 +101,10 @@ class Engine:
                 "daily_pnl": daily_pnl,
                 "threshold": -loss_threshold,
             })
+            return
+
+        # Circuit breaker gates only the agent-and-executor portion
+        if self._circuit_breaker_tripped:
             return
 
         positions = await self._account.get_positions()
@@ -131,6 +145,19 @@ class Engine:
             "fills_processed": recent_fills,
             "consecutive_failures": self._consecutive_failures,
         })
+
+        proposal_results = await self._executor.execute(self._store.proposed_trades_path())
+        if proposal_results:
+            self._store.atomic_write_text(
+                self._store.proposal_results_path(),
+                json.dumps(proposal_results, indent=2, default=str),
+            )
+            for r in proposal_results:
+                self._log_writer.write({
+                    "event": "proposal_executed",
+                    "time": now.isoformat(),
+                    "result": r,
+                })
 
         if self._consecutive_failures >= self._config.safety.max_consecutive_agent_failures:
             self._halted = True
