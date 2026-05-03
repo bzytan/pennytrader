@@ -93,7 +93,7 @@ class Orders:
         if ret != ft.RET_OK:
             raise MoomooOrderError(str(data), error_code=ret)
         if data is None or (hasattr(data, "__len__") and len(data) == 0):
-            raise MoomooOrderError("Empty response from place_order", error_code=ret)
+            raise MoomooOrderError("Empty response from place_order", error_code=-1)
         return str(data.iloc[0]["order_id"])
 
     async def cancel_order(self, order_id: str) -> None:
@@ -104,7 +104,7 @@ class Orders:
                 modify_order_op=ft.ModifyOrderOp.CANCEL,
                 order_id=order_id,
                 qty=0,
-                price=0,
+                price=0.0,
                 trd_env=self._conn.trd_env,
             ),
         )

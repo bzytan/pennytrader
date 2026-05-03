@@ -53,6 +53,8 @@ async def test_place_option_order_returns_order_id(mock_conn):
     result = await orders.place_order(spec)
 
     assert result == "ORD002"
+    call_kwargs = mock_conn.trade_ctx.place_order.call_args.kwargs
+    assert call_kwargs["code"] == "US.AAPL240119C00150000"
 
 
 async def test_place_order_raises_on_sdk_error(mock_conn):
@@ -78,6 +80,8 @@ async def test_cancel_order_succeeds(mock_conn):
     await orders.cancel_order("ORD001")
 
     mock_conn.trade_ctx.modify_order.assert_called_once()
+    call_kwargs = mock_conn.trade_ctx.modify_order.call_args.kwargs
+    assert call_kwargs["modify_order_op"] == ft.ModifyOrderOp.CANCEL
 
 
 async def test_cancel_order_raises_on_sdk_error(mock_conn):
@@ -96,6 +100,8 @@ async def test_modify_order_succeeds(mock_conn):
     await orders.modify_order("ORD001", qty=5, price=155.0)
 
     mock_conn.trade_ctx.modify_order.assert_called_once()
+    call_kwargs = mock_conn.trade_ctx.modify_order.call_args.kwargs
+    assert call_kwargs["modify_order_op"] == ft.ModifyOrderOp.NORMAL
 
 
 async def test_get_orders_filters_by_status(mock_conn):
