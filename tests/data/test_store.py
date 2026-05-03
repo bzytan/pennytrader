@@ -112,3 +112,15 @@ def test_ensure_dirs_creates_new_subdirs(tmp_path):
     store.ensure_dirs()
     for sub in ("ledger", "learnings", "dreams"):
         assert (tmp_path / sub).is_dir()
+
+
+def test_history_cache_dir(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.history_cache_dir() == tmp_path / "historical_cache"
+
+
+def test_backtest_run_dir(tmp_path):
+    store = DataStore(tmp_path)
+    assert store.backtest_run_dir("2026-05-04T22-15-00_label") == (
+        tmp_path / "backtests" / "2026-05-04T22-15-00_label"
+    )
