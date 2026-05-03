@@ -26,6 +26,7 @@ analytics code unchanged — only the broker and clock are substituted.
 | `analytics/` | Trade ledger, performance, learnings store |
 | `backtest/` | Backtest broker, clock, matcher, runner, CLI |
 | `tests/` | Pytest, mocked at the SDK boundary |
+| `FOLLOWUPS.md` | Pending work, bugs, and explicitly-deferred items |
 | `docs/superpowers/specs/` | Design specs (`YYYY-MM-DD-<topic>-design.md`) |
 | `docs/superpowers/plans/` | Implementation plans matching specs |
 
@@ -45,6 +46,28 @@ Worktrees go in `.worktrees/<feature-name>/` (gitignored). The
 For tiny mechanical fixes (one-line edits, obvious bug fixes), it is
 acceptable to skip the full workflow and commit directly. Use judgment —
 when in doubt, brainstorm first.
+
+## Maintaining `FOLLOWUPS.md`
+
+The repo root has `FOLLOWUPS.md` — the running list of pending work,
+known bugs, recommended next steps, and explicitly-deferred items.
+It's the canonical place to track work that's been discussed but not
+yet completed.
+
+**When new follow-ups come up in conversation** (a bug surfaced, an
+improvement suggested, a future feature mentioned, a deferral made
+explicit), add an entry to the appropriate section of `FOLLOWUPS.md`
+in the same commit or in a small docs commit. The point is that the
+list reflects everything the operator and future-you should remember.
+
+**When a follow-up is completed** (a bug fixed, a feature shipped,
+a deferral overturned by actually building the thing), remove the
+entry from `FOLLOWUPS.md` in the same commit that lands the change.
+Don't leave stale items.
+
+If a follow-up is partially addressed but not fully resolved, update
+its description rather than deleting it. The goal is that
+`FOLLOWUPS.md` is always the truth about what's outstanding.
 
 ## Code conventions
 
